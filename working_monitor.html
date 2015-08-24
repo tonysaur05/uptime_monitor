@@ -1,0 +1,64 @@
+<html>
+	<head>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+</script>
+	</head>
+ <body>
+	<script>
+		function statusLog()
+		{
+			this.date = null;
+			this.time = null;
+			this.status = null;
+		}
+
+		function getCurrentStatus()
+		{
+			xmlhttp = new XMLHttpRequest();
+			var status = "working";
+			if (status == "working")
+			{
+				workingCnt++;
+				return status.fontcolor("green");
+			}
+			failCnt++;
+			return status.fontcolor("red");
+		}
+
+		function getWorkPerc()
+		{
+			return (workingCnt / statusArray.length * 100).toFixed();
+		}
+
+		function pushArray()
+		{
+			var currentLog = new statusLog();
+			var now = new Date();
+			currentLog.date = now.toLocaleDateString();
+			currentLog.time = now.toLocaleTimeString();
+			currentLog.status = getCurrentStatus();
+
+			document.write(currentLog.date + "  " +
+			currentLog.time + "  " + currentLog.status + "  ");
+
+			statusArray.push(currentLog);
+
+			document.write((getWorkPerc() + "%<br>").fontcolor("orange"));
+		}
+
+		var statusArray = [];
+		var workingCnt = 0;
+		var failCnt = 0;
+		var seconds = 10;
+
+		(function theLoop (i) {
+		  setTimeout(function () {
+		  	pushArray();
+		    if (--i) {     // If i > 0, keep going
+		      theLoop(i);  // Call the loop again
+		    }
+		  }, 1000);
+		}) (seconds);
+		</script>
+ </body>
+</html>
