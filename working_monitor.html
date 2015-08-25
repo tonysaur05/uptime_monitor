@@ -1,10 +1,86 @@
 <html>
+<!--This progam monitors and displays the current status of a webpage -->
 	<head>
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-</script>
+		<script>
+		//*************************************************************************
+		//jQuery.ajax: Converts source code from a URL into a javascript variable
+		//Note: This particular function was copied directly from stackoverflow.com
+		//I still need to learn more about JSON/jQuery in order to fully underdstand
+		//*************************************************************************
+		jQuery.ajax = (function(_ajax){
+
+		    var protocol = location.protocol,
+		        hostname = location.hostname,
+		        exRegex = RegExp(protocol + '//' + hostname),
+		        YQL = 'http' + (/^https/.test(protocol)?'s':'') + '://query.yahooapis.com/v1/public/yql?callback=?',
+		        query = 'select * from html where url="{URL}" and xpath="*"';
+
+		    function isExternal(url) {
+		        return !exRegex.test(url) && /:\/\//.test(url);
+		    }
+
+		    return function(o) {
+
+		        var url = o.url;
+
+		        if ( /get/i.test(o.type) && !/json/i.test(o.dataType) && isExternal(url) ) {
+
+		            // Manipulate options so that JSONP-x request is made to YQL
+
+		            o.url = YQL;
+		            o.dataType = 'json';
+
+		            o.data = {
+		                q: query.replace(
+		                    '{URL}',
+		                    url + (o.data ?
+		                        (/\?/.test(url) ? '&' : '?') + jQuery.param(o.data)
+		                    : '')
+		                ),
+		                format: 'xml'
+		            };
+
+		            // Since it's a JSONP request
+		            // complete === success
+		            if (!o.success && o.complete) {
+		                o.success = o.complete;
+		                delete o.complete;
+		            }
+
+		            o.success = (function(_success){
+		                return function(data) {
+
+		                    if (_success) {
+		                        // Fake XHR callback.
+		                        _success.call(this, {
+		                            responseText: data.results[0]
+		                                // YQL screws with <script>s
+		                                // Get rid of them
+		                                .replace(/<script[^>]+?\/>|<script(.|\s)*?\/script>/gi, '')
+		                        }, 'success');
+		                    }
+
+		                };
+		            })(o.success);
+
+		        }
+
+		        return _ajax.apply(this, arguments);
+
+		    };
+
+		})(jQuery.ajax);
+		</script>
 	</head>
  <body>
 	<script>
+		//*************************************************************************
+		// statusLog: acts like a new data type that holds 3 elements.
+		// this.date: the statusLog's date in DD/MM/YYYY format
+		// this.time: the statusLog's time in HH:MM:SS format
+		// this.status: the statusLog's status(working or failing)
+		//*************************************************************************
 		function statusLog()
 		{
 			this.date = null;
@@ -12,50 +88,86 @@
 			this.status = null;
 		}
 
+		//*************************************************************************
+		// getCurrentStatus: checks the URL for the working or failing status
+		// statusHTML: stores the full HTML code from the URL
+		// returns the string working or failing
+		//*************************************************************************
 		function getCurrentStatus()
-		{
-			xmlhttp = new XMLHttpRequest();
-			var status = "working";
-			if (status == "working")
-			{
-				workingCnt++;
-				return status.fontcolor("green");
-			}
-			failCnt++;
-			return status.fontcolor("red");
+		{	
+			var statusHTML = "";
+
+			//Pulls HTML source code from URL and stores it in statusHTML
+			$.ajax({
+			    url: 'http://simpleservice.mybluemix.net/working',
+			    type: 'GET',
+			    success: function(res) {
+			        statusHTML = res.responseText;
+
+			        //If the pulled source code matches the "working" source code, increment the
+			        //workingCnt and change status to working. Otherwise increment the failingCnt
+			        //and change the status to failing
+			        if (statusHTML == "<html><head/><body>working</body></html>")
+							{
+								workingCnt++;
+								status = "working".fontcolor("green");
+							}
+							else
+							{
+								failingCnt++;
+								status = "failing&nbsp&nbsp&nbsp;".fontcolor("red");
+							}
+			    }
+			});
+
+			return status;
 		}
 
+		//*************************************************************************
+		// getWorkPerc: calculates the "working" percentage
+		// returns the working percentage minus the first 2 read errors to 4 decimal places
+		//*************************************************************************
 		function getWorkPerc()
 		{
-			return (workingCnt / statusArray.length * 100).toFixed();
+		  return ((workingCnt / (statusArray.length - 2)) * 100).toFixed(4);
 		}
 
+		//*************************************************************************
+		// pushArray: creates a new statusLog, prints it to the screen, and pushes it to 
+		//   the statusArray.
+		// currentLog: contains a new statusLog element
+		// now: contains a new Date element
+		//*************************************************************************
 		function pushArray()
 		{
 			var currentLog = new statusLog();
 			var now = new Date();
-			currentLog.date = now.toLocaleDateString();
-			currentLog.time = now.toLocaleTimeString();
-			currentLog.status = getCurrentStatus();
+			currentLog.date = now.toLocaleDateString();	//convert date element to DD:MM:YYYY
+			currentLog.time = now.toLocaleTimeString(); //convert date element to HH:MM:SS
+			currentLog.status = getCurrentStatus();		//calls function to get status
 
 			document.write(currentLog.date + "  " +
 			currentLog.time + "  " + currentLog.status + "  ");
 
-			statusArray.push(currentLog);
+			statusArray.push(currentLog);				//push newly created log to statusArray
 
-			document.write((getWorkPerc() + "%<br>").fontcolor("orange"));
+			document.write((getWorkPerc() + "%<br>").fontcolor("orange")); //Display work percent
 		}
 
-		var statusArray = [];
-		var workingCnt = 0;
-		var failCnt = 0;
-		var seconds = 10;
+		var statusArray = [];	//array that holds statusLog elements
+		var status = "Unknown error on first 2 tests".fontcolor("purple"); //current status of URL
+		var workingCnt = 0;		//tracks number of working tests
+		var failingCnt = 0;		//tracks number of failing tests
+		var hours = 1;			//sets the duration of the test in hours
+		var seconds = 60 * 60 * hours;	//converts hours to seconds
 
+		//pushes a new statusLog to the statusArray in 1 second increments. *Note: I had help with
+		//this section in stackoverflow.com also. 
 		(function theLoop (i) {
 		  setTimeout(function () {
 		  	pushArray();
-		    if (--i) {     // If i > 0, keep going
-		      theLoop(i);  // Call the loop again
+		    if (--i) {
+		      theLoop(i);
 		    }
 		  }, 1000);
 		}) (seconds);
